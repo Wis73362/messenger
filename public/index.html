@@ -3,29 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nova Messenger</title>
+    <title>CoreLogic Messenger</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
+  <body data-theme="dark">
     <div id="landing" class="landing">
       <div class="gradient-orb"></div>
       <header class="landing-header">
-        <h1>Nova Messenger</h1>
-        <p>Новый взгляд на общение: быстрые каналы, личные чаты и реакции в реальном времени.</p>
+        <h1>CoreLogic</h1>
+        <p>Лёгкий realtime-мессенджер с Discord-подобной структурой, темами, профилями и умными настройками.</p>
         <button id="open-auth" class="primary">Начать общение</button>
       </header>
       <section class="feature-grid">
         <article>
-          <h3>Серверы и каналы</h3>
-          <p>Создавайте тематические пространства как в Discord.</p>
+          <h3>Каналы и рабочие потоки</h3>
+          <p>Организуйте обсуждения по темам и держите всё структурированно.</p>
         </article>
         <article>
-          <h3>ЛС и быстрые чаты</h3>
-          <p>Начинайте личные диалоги в один клик как в Telegram.</p>
+          <h3>Гибкий профиль</h3>
+          <p>Меняйте ник, био, аватар и быстро управляйте видимостью.</p>
         </article>
         <article>
-          <h3>Живые реакции</h3>
-          <p>Реагируйте эмодзи, отвечайте, закрепляйте и редактируйте сообщения.</p>
+          <h3>Контекстные действия</h3>
+          <p>Минималистичное меню действий появляется только при наведении на сообщение.</p>
         </article>
       </section>
     </div>
@@ -44,17 +44,54 @@
       </div>
     </div>
 
+    <div id="settings-modal" class="modal hidden">
+      <div class="modal-card settings-card">
+        <div class="settings-header">
+          <h2>Настройки CoreLogic</h2>
+          <button id="close-settings" class="icon-btn" title="Закрыть">✕</button>
+        </div>
+
+        <section>
+          <h3>Профиль</h3>
+          <input id="profile-nick" placeholder="Никнейм" maxlength="24" />
+          <input id="profile-bio" placeholder="Короткое био" maxlength="80" />
+          <div class="settings-row">
+            <input id="profile-avatar-icon" placeholder="Иконка (emoji)" maxlength="2" />
+            <input id="profile-avatar-color" type="color" value="#5865f2" />
+          </div>
+          <button id="save-profile" class="primary">Сохранить профиль</button>
+        </section>
+
+        <section>
+          <h3>Внешний вид</h3>
+          <div class="theme-options" id="theme-options">
+            <button data-theme="dark">Dark</button>
+            <button data-theme="midnight">Midnight</button>
+            <button data-theme="light">Light</button>
+          </div>
+          <label class="check"><input type="checkbox" id="compact-mode" /> Компактный режим сообщений</label>
+          <label class="check"><input type="checkbox" id="show-seconds" /> Показывать секунды во времени</label>
+        </section>
+      </div>
+    </div>
+
     <div id="app" class="app hidden">
       <aside class="sidebar">
+        <div class="brand">CoreLogic</div>
         <div class="profile">
-          <div id="avatar" class="avatar"></div>
+          <div id="avatar" class="avatar">🙂</div>
           <div>
             <strong id="me-name"></strong>
             <small id="me-status"></small>
           </div>
+          <button id="open-settings" class="icon-btn" title="Настройки">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.8A3.2 3.2 0 1 0 12 15.2A3.2 3.2 0 1 0 12 8.8ZM20.2 13.2V10.8L17.9 10.2C17.8 9.8 17.6 9.4 17.4 9L18.7 6.9L17 5.2L14.9 6.5C14.5 6.3 14.1 6.1 13.7 6L13.2 3.8H10.8L10.3 6C9.9 6.1 9.5 6.3 9.1 6.5L7 5.2L5.3 6.9L6.6 9C6.4 9.4 6.2 9.8 6.1 10.2L3.8 10.8V13.2L6.1 13.8C6.2 14.2 6.4 14.6 6.6 15L5.3 17.1L7 18.8L9.1 17.5C9.5 17.7 9.9 17.9 10.3 18L10.8 20.2H13.2L13.7 18C14.1 17.9 14.5 17.7 14.9 17.5L17 18.8L18.7 17.1L17.4 15C17.6 14.6 17.8 14.2 17.9 13.8L20.2 13.2Z"/></svg>
+          </button>
         </div>
-        <button id="new-channel">+ Канал</button>
-        <button id="new-dm">+ Личный чат</button>
+        <div class="quick-actions">
+          <button id="new-channel">+ Канал</button>
+          <button id="new-dm">+ Личный чат</button>
+        </div>
         <input id="search" placeholder="Поиск сообщений" />
         <div class="rooms-block">
           <h4>Каналы</h4>
@@ -64,7 +101,7 @@
         </div>
       </aside>
       <main class="chat-area">
-        <header>
+        <header class="chat-header">
           <h2 id="room-title">Выберите чат</h2>
           <p id="typing"></p>
         </header>

@@ -20,11 +20,16 @@ const messagesByRoom = new Map();
 
 const now = () => new Date().toISOString();
 
+function publicUser(user) {
+  const { password, ...safe } = user;
+  return safe;
+}
+
 function createDefaultData() {
   const lobby = {
     id: 'channel-general',
     type: 'channel',
-    title: '🌌 general',
+    title: '💬 general',
     description: 'Общий канал для обсуждений',
     createdAt: now()
   };
@@ -32,7 +37,7 @@ function createDefaultData() {
   const updates = {
     id: 'channel-updates',
     type: 'channel',
-    title: '🚀 updates',
+    title: '📢 updates',
     description: 'Новости продукта и анонсы',
     createdAt: now()
   };
@@ -47,7 +52,7 @@ function createDefaultData() {
       id: uuid(),
       roomId,
       senderId: 'system',
-      senderName: 'NovaBot',
+      senderName: 'CoreLogic Bot',
       text,
       createdAt: now(),
       editedAt: null,
@@ -57,8 +62,8 @@ function createDefaultData() {
     });
   };
 
-  systemMessage(lobby.id, 'Добро пожаловать в Nova Messenger! Создайте чат или начните переписку.');
-  systemMessage(updates.id, 'Сегодня доступна поддержка каналов, ЛС, реакций и ответов на сообщения.');
+  systemMessage(lobby.id, 'Добро пожаловать в CoreLogic! Настройте профиль и выберите любимую тему интерфейса.');
+  systemMessage(updates.id, 'Доступны каналы, ЛС, реакции, ответы, профиль и контекстные действия для сообщений.');
 }
 
 createDefaultData();
@@ -100,9 +105,11 @@ app.post('/api/auth/register', (req, res) => {
   const user = {
     id: uuid(),
     username,
+    displayName: username,
     password,
-    bio: 'Новый исследователь Nova',
+    bio: 'Новый участник CoreLogic',
     avatarColor: `hsl(${Math.floor(Math.random() * 360)} 80% 60%)`,
+    avatarIcon: '🙂',
     createdAt: now(),
     status: 'offline'
   };
@@ -112,7 +119,7 @@ app.post('/api/auth/register', (req, res) => {
   const token = uuid();
   sessions.set(token, user.id);
 
-  return res.json({ token, user: { ...user, password: undefined }, rooms: roomSummary(user.id) });
+  return res.json({ token, user: publicUser(user), rooms: roomSummary(user.id) });
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -123,15 +130,30 @@ app.post('/api/auth/login', (req, res) => {
   }
   const token = uuid();
   sessions.set(token, user.id);
-  return res.json({ token, user: { ...user, password: undefined }, rooms: roomSummary(user.id) });
+  return res.json({ token, user: publicUser(user), rooms: roomSummary(user.id) });
+});
+
+app.patch('/api/profile', auth, (req, res) => {
+  const { displayName, bio, avatarColor, avatarIcon } = req.body;
+
+  if (displayName && displayName.length > 24) return res.status(400).json({ error: 'Display name too long' });
+  if (bio && bio.length > 80) return res.status(400).json({ error: 'Bio too long' });
+
+  if (typeof displayName === 'string' && displayName.trim()) req.user.displayName = displayName.trim();
+  if (typeof bio === 'string') req.user.bio = bio.trim();
+  if (typeof avatarColor === 'string' && avatarColor) req.user.avatarColor = avatarColor;
+  if (typeof avatarIcon === 'string' && avatarIcon) req.user.avatarIcon = avatarIcon.slice(0, 2);
+
+  io.emit('profile:updated', publicUser(req.user));
+  res.json(publicUser(req.user));
 });
 
 app.get('/api/bootstrap', auth, (req, res) => {
   const online = [...users.values()].filter((u) => u.status === 'online').map((u) => ({ id: u.id, username: u.username }));
   res.json({
-    user: { ...req.user, password: undefined },
+    user: publicUser(req.user),
     rooms: roomSummary(req.user.id),
-    users: [...users.values()].map((u) => ({ id: u.id, username: u.username, bio: u.bio, avatarColor: u.avatarColor, status: u.status })),
+    users: [...users.values()].map((u) => publicUser(u)),
     online
   });
 });
@@ -175,7 +197,7 @@ app.post('/api/dms', auth, (req, res) => {
   const dm = {
     id: `dm-${uuid()}`,
     type: 'dm',
-    title: `💬 ${req.user.username} & ${users.get(memberId).username}`,
+    title: `💬 ${req.user.displayName || req.user.username} & ${users.get(memberId).displayName || users.get(memberId).username}`,
     members: [req.user.id, memberId],
     createdAt: now()
   };
@@ -220,7 +242,7 @@ io.on('connection', (socket) => {
   socketsByUser.set(user.id, socket.id);
   user.status = 'online';
 
-  socket.emit('presence:init', [...users.values()].map((u) => ({ id: u.id, username: u.username, status: u.status })));
+  socket.emit('presence:init', [...users.values()].map((u) => ({ id: u.id, username: u.username, displayName: u.displayName, status: u.status })));
   socket.broadcast.emit('presence:update', { id: user.id, status: 'online' });
 
   [...channels.keys(), ...[...dms.values()].filter((dm) => dm.members.includes(user.id)).map((dm) => dm.id)].forEach((roomId) => {
@@ -232,11 +254,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('typing:start', ({ roomId }) => {
-    socket.to(roomId).emit('typing:update', { roomId, userId: user.id, username: user.username, typing: true });
+    socket.to(roomId).emit('typing:update', { roomId, userId: user.id, username: user.displayName || user.username, typing: true });
   });
 
   socket.on('typing:stop', ({ roomId }) => {
-    socket.to(roomId).emit('typing:update', { roomId, userId: user.id, username: user.username, typing: false });
+    socket.to(roomId).emit('typing:update', { roomId, userId: user.id, username: user.displayName || user.username, typing: false });
   });
 
   socket.on('message:send', ({ roomId, text, replyTo }) => {
@@ -249,7 +271,7 @@ io.on('connection', (socket) => {
       id: uuid(),
       roomId,
       senderId: user.id,
-      senderName: user.username,
+      senderName: user.displayName || user.username,
       text: text.trim(),
       createdAt: now(),
       editedAt: null,
@@ -316,5 +338,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Nova Messenger running on http://localhost:${PORT}`);
+  console.log(`CoreLogic Messenger running on http://localhost:${PORT}`);
 });

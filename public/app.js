@@ -7,57 +7,134 @@ const state = {
   messages: [],
   replyTo: null,
   typingMap: new Map(),
-  socket: null
+  socket: null,
+  settings: {
+    theme: localStorage.getItem('corelogic.theme') || 'dark',
+    compactMode: localStorage.getItem('corelogic.compact') === '1',
+    showSeconds: localStorage.getItem('corelogic.seconds') === '1'
+  }
 };
 
 const $ = (id) => document.getElementById(id);
 
-$('open-auth').onclick = () => $('auth-modal').classList.remove('hidden');
-$('close-auth').onclick = () => $('auth-modal').classList.add('hidden');
+initUi();
 
-$('register').onclick = () => auth('register');
-$('login').onclick = () => auth('login');
+function initUi() {
+  applyTheme(state.settings.theme);
+  document.body.classList.toggle('compact-mode', state.settings.compactMode);
+  $('compact-mode').checked = state.settings.compactMode;
+  $('show-seconds').checked = state.settings.showSeconds;
 
-$('new-channel').onclick = async () => {
-  const title = prompt('Название канала');
-  if (!title) return;
-  await api('/api/channels', { method: 'POST', body: JSON.stringify({ title }) });
-};
+  $('open-auth').onclick = () => $('auth-modal').classList.remove('hidden');
+  $('close-auth').onclick = () => $('auth-modal').classList.add('hidden');
 
-$('new-dm').onclick = async () => {
-  const username = prompt('Логин пользователя для ЛС');
-  if (!username) return;
-  const target = state.users.find((u) => u.username === username);
-  if (!target) return alert('Пользователь не найден');
-  const room = await api('/api/dms', { method: 'POST', body: JSON.stringify({ memberId: target.id }) });
-  loadRooms({ ...state.rooms, dms: [...state.rooms.dms.filter((d) => d.id !== room.id), room] });
-};
+  $('register').onclick = () => auth('register');
+  $('login').onclick = () => auth('login');
 
-$('search').addEventListener('input', async (e) => {
-  const q = e.target.value.trim();
-  if (!q) return ($('search-results').innerHTML = '');
-  const results = await api(`/api/search?q=${encodeURIComponent(q)}`);
-  $('search-results').innerHTML = `<h4>Найдено</h4>${results
-    .map((r) => `<div class="message"><b>${r.roomTitle}</b><div>${escapeHtml(r.message.text)}</div></div>`)
-    .join('')}`;
-});
+  $('open-settings').onclick = () => {
+    fillSettingsForm();
+    $('settings-modal').classList.remove('hidden');
+  };
+  $('close-settings').onclick = () => $('settings-modal').classList.add('hidden');
 
-$('send-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const text = $('message-input').value.trim();
-  if (!text || !state.activeRoomId) return;
-  state.socket.emit('message:send', { roomId: state.activeRoomId, text, replyTo: state.replyTo?.id || null });
-  $('message-input').value = '';
-  setReply(null);
-  state.socket.emit('typing:stop', { roomId: state.activeRoomId });
-});
+  $('save-profile').onclick = saveProfile;
 
-$('message-input').addEventListener('input', () => {
-  if (!state.activeRoomId) return;
-  state.socket.emit('typing:start', { roomId: state.activeRoomId });
-  clearTimeout(window.typingTimeout);
-  window.typingTimeout = setTimeout(() => state.socket.emit('typing:stop', { roomId: state.activeRoomId }), 800);
-});
+  $('compact-mode').addEventListener('change', (e) => {
+    state.settings.compactMode = e.target.checked;
+    document.body.classList.toggle('compact-mode', state.settings.compactMode);
+    localStorage.setItem('corelogic.compact', state.settings.compactMode ? '1' : '0');
+  });
+
+  $('show-seconds').addEventListener('change', (e) => {
+    state.settings.showSeconds = e.target.checked;
+    localStorage.setItem('corelogic.seconds', state.settings.showSeconds ? '1' : '0');
+    renderMessages();
+  });
+
+  [...$('theme-options').querySelectorAll('button')].forEach((btn) => {
+    btn.onclick = () => applyTheme(btn.dataset.theme);
+  });
+
+  $('new-channel').onclick = async () => {
+    const title = prompt('Название канала');
+    if (!title) return;
+    await api('/api/channels', { method: 'POST', body: JSON.stringify({ title }) });
+  };
+
+  $('new-dm').onclick = async () => {
+    const username = prompt('Логин пользователя для ЛС');
+    if (!username) return;
+    const target = state.users.find((u) => u.username === username);
+    if (!target) return alert('Пользователь не найден');
+    const room = await api('/api/dms', { method: 'POST', body: JSON.stringify({ memberId: target.id }) });
+    loadRooms({ ...state.rooms, dms: [...state.rooms.dms.filter((d) => d.id !== room.id), room] });
+  };
+
+  $('search').addEventListener('input', async (e) => {
+    const q = e.target.value.trim();
+    if (!q) return ($('search-results').innerHTML = '');
+    const results = await api(`/api/search?q=${encodeURIComponent(q)}`);
+    $('search-results').innerHTML = `<h4>Найдено</h4>${results
+      .map(
+        (r) =>
+          `<div class="search-item" data-room-id="${r.roomId}"><b>${escapeHtml(r.roomTitle)}</b><div>${escapeHtml(r.message.text)}</div></div>`
+      )
+      .join('')}`;
+
+    [...$('search-results').querySelectorAll('.search-item')].forEach((el) => {
+      el.onclick = () => openRoom(el.dataset.roomId);
+    });
+  });
+
+  $('send-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = $('message-input').value.trim();
+    if (!text || !state.activeRoomId) return;
+    state.socket.emit('message:send', { roomId: state.activeRoomId, text, replyTo: state.replyTo?.id || null });
+    $('message-input').value = '';
+    setReply(null);
+    state.socket.emit('typing:stop', { roomId: state.activeRoomId });
+  });
+
+  $('message-input').addEventListener('input', () => {
+    if (!state.activeRoomId || !state.socket) return;
+    state.socket.emit('typing:start', { roomId: state.activeRoomId });
+    clearTimeout(window.typingTimeout);
+    window.typingTimeout = setTimeout(() => state.socket.emit('typing:stop', { roomId: state.activeRoomId }), 800);
+  });
+}
+
+function fillSettingsForm() {
+  if (!state.me) return;
+  $('profile-nick').value = state.me.displayName || state.me.username;
+  $('profile-bio').value = state.me.bio || '';
+  $('profile-avatar-icon').value = state.me.avatarIcon || '🙂';
+  $('profile-avatar-color').value = state.me.avatarColor || '#5865f2';
+}
+
+async function saveProfile() {
+  try {
+    const payload = {
+      displayName: $('profile-nick').value.trim(),
+      bio: $('profile-bio').value.trim(),
+      avatarIcon: $('profile-avatar-icon').value.trim() || '🙂',
+      avatarColor: $('profile-avatar-color').value
+    };
+    const updated = await api('/api/profile', { method: 'PATCH', body: JSON.stringify(payload) });
+    state.me = updated;
+    syncMeUi();
+    $('settings-modal').classList.add('hidden');
+  } catch (err) {
+    alert(err.message || 'Не удалось сохранить профиль');
+  }
+}
+
+function applyTheme(theme) {
+  state.settings.theme = theme;
+  localStorage.setItem('corelogic.theme', theme);
+  document.body.dataset.theme = theme;
+  [...$('theme-options').querySelectorAll('button')].forEach((b) => b.classList.toggle('active', b.dataset.theme === theme));
+}
 
 async function auth(mode) {
   const username = $('username').value.trim();
@@ -87,14 +164,17 @@ async function bootstrap() {
   state.users = data.users;
   state.rooms = data.rooms;
   state.me = data.user;
-
-  $('me-name').textContent = state.me.username;
-  $('me-status').textContent = 'В сети';
-  $('avatar').style.background = state.me.avatarColor;
-
+  syncMeUi();
   loadRooms(state.rooms);
   renderOnline(data.online);
   connectSocket();
+}
+
+function syncMeUi() {
+  $('me-name').textContent = state.me.displayName || state.me.username;
+  $('me-status').textContent = state.me.bio || 'В сети';
+  $('avatar').style.background = state.me.avatarColor;
+  $('avatar').textContent = state.me.avatarIcon || '🙂';
 }
 
 function connectSocket() {
@@ -123,6 +203,16 @@ function connectSocket() {
     renderMessages();
   });
 
+  state.socket.on('profile:updated', (user) => {
+    const index = state.users.findIndex((u) => u.id === user.id);
+    if (index >= 0) state.users[index] = user;
+    if (state.me?.id === user.id) {
+      state.me = user;
+      syncMeUi();
+    }
+    renderOnline(state.users.filter((u) => u.status === 'online'));
+  });
+
   state.socket.on('presence:init', (list) => renderOnline(list.filter((u) => u.status === 'online')));
   state.socket.on('presence:update', ({ id, status }) => {
     const user = state.users.find((u) => u.id === id);
@@ -139,20 +229,22 @@ function connectSocket() {
 }
 
 function loadRooms(rooms) {
-  const render = (arr, id, type) => {
+  const render = (arr, id) => {
     $(id).innerHTML = arr
       .map((room) => `<li class="${state.activeRoomId === room.id ? 'active' : ''}" data-room="${room.id}">${escapeHtml(room.title)}</li>`)
       .join('');
     [...$(id).querySelectorAll('li')].forEach((li) => {
-      li.onclick = () => openRoom(li.dataset.room, type);
+      li.onclick = () => openRoom(li.dataset.room);
     });
   };
-  render(rooms.channels, 'channels', 'channel');
-  render(rooms.dms, 'dms', 'dm');
+  render(rooms.channels, 'channels');
+  render(rooms.dms, 'dms');
 }
 
 async function openRoom(roomId) {
   state.activeRoomId = roomId;
+  state.typingMap.clear();
+  $('typing').textContent = '';
   loadRooms(state.rooms);
   state.socket?.emit('room:join', { roomId });
   const room = [...state.rooms.channels, ...state.rooms.dms].find((r) => r.id === roomId);
@@ -168,17 +260,27 @@ function renderMessages() {
       const reactions = Object.entries(m.reactions || {})
         .map(([emoji, ids]) => `<button class="reaction-btn" data-react="${emoji}" data-mid="${m.id}">${emoji} ${ids.length}</button>`)
         .join('');
-      return `<div class="message">
-        <div><b>${escapeHtml(m.senderName)}</b> ${m.pinned ? '📌' : ''}</div>
-        <div class="meta">${new Date(m.createdAt).toLocaleString()} ${m.editedAt ? '(изменено)' : ''}</div>
-        ${reply ? `<div class="reply">Ответ на: ${escapeHtml(reply.text)}</div>` : ''}
-        <div>${escapeHtml(m.text)}</div>
-        <div class="reactions">${reactions}</div>
-        <div class="msg-actions">
-          <button data-action="reply" data-mid="${m.id}">Ответить</button>
-          <button data-action="react" data-mid="${m.id}">😀</button>
-          <button data-action="pin" data-mid="${m.id}">📌</button>
-          ${m.senderId === state.me.id ? `<button data-action="edit" data-mid="${m.id}">Ред.</button><button data-action="delete" data-mid="${m.id}">Удал.</button>` : ''}
+
+      const timeOpts = state.settings.showSeconds
+        ? { hour: '2-digit', minute: '2-digit', second: '2-digit' }
+        : { hour: '2-digit', minute: '2-digit' };
+
+      return `<div class="message" data-mid="${m.id}">
+        <div class="msg-main">
+          <div class="author-row"><b>${escapeHtml(m.senderName)}</b> ${m.pinned ? '<span class="pin">📌</span>' : ''}</div>
+          <div class="meta">${new Date(m.createdAt).toLocaleTimeString([], timeOpts)} ${m.editedAt ? '· изменено' : ''}</div>
+          ${reply ? `<div class="reply">Ответ на: ${escapeHtml(reply.text)}</div>` : ''}
+          <div class="msg-text">${escapeHtml(m.text)}</div>
+          <div class="reactions">${reactions}</div>
+        </div>
+        <button class="message-menu-trigger icon-btn" data-action="toggle-menu" data-mid="${m.id}" title="Действия">
+          <svg viewBox="0 0 24 24"><path d="M6 12A2 2 0 1 0 6 12ZM12 12A2 2 0 1 0 12 12ZM18 12A2 2 0 1 0 18 12Z"/></svg>
+        </button>
+        <div class="context-menu hidden" id="menu-${m.id}">
+          <button data-action="reply" data-mid="${m.id}">↩ Ответить</button>
+          <button data-action="react" data-mid="${m.id}">✨ Реакция</button>
+          <button data-action="pin" data-mid="${m.id}">${m.pinned ? '📌 Снять пин' : '📌 Закрепить'}</button>
+          ${m.senderId === state.me.id ? `<button data-action="edit" data-mid="${m.id}">✏ Редактировать</button><button data-action="delete" data-mid="${m.id}" class="danger">🗑 Удалить</button>` : ''}
         </div>
       </div>`;
     })
@@ -186,14 +288,26 @@ function renderMessages() {
 
   [...$('messages').querySelectorAll('button')].forEach((btn) => {
     const mid = btn.dataset.mid;
+    if (!mid) return;
+
     if (btn.dataset.react) {
       btn.onclick = () => state.socket.emit('message:react', { roomId: state.activeRoomId, messageId: mid, emoji: btn.dataset.react });
       return;
     }
+
     const action = btn.dataset.action;
-    btn.onclick = () => {
+    btn.onclick = (event) => {
+      event.stopPropagation();
       const msg = state.messages.find((m) => m.id === mid);
       if (!msg) return;
+
+      if (action === 'toggle-menu') {
+        closeAllMenus();
+        const menu = $(`menu-${mid}`);
+        menu.classList.toggle('hidden');
+        return;
+      }
+      closeAllMenus();
       if (action === 'reply') setReply(msg);
       if (action === 'react') state.socket.emit('message:react', { roomId: state.activeRoomId, messageId: mid, emoji: '🔥' });
       if (action === 'pin') state.socket.emit('message:pin', { roomId: state.activeRoomId, messageId: mid });
@@ -205,7 +319,12 @@ function renderMessages() {
     };
   });
 
+  document.addEventListener('click', closeAllMenus, { once: true });
   $('messages').scrollTop = $('messages').scrollHeight;
+}
+
+function closeAllMenus() {
+  [...document.querySelectorAll('.context-menu')].forEach((el) => el.classList.add('hidden'));
 }
 
 function setReply(message) {
@@ -216,7 +335,10 @@ function setReply(message) {
 }
 
 function renderOnline(users) {
-  $('online-list').innerHTML = users.map((u) => `<li>${escapeHtml(u.username)} 🟢</li>`).join('') || '<li>Никого</li>';
+  $('online-list').innerHTML =
+    users
+      .map((u) => `<li>${escapeHtml(u.displayName || u.username)} <span class="online-dot">●</span></li>`)
+      .join('') || '<li>Никого</li>';
 }
 
 async function api(path, options = {}) {
@@ -228,7 +350,9 @@ async function api(path, options = {}) {
       ...(options.headers || {})
     }
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Request failed');
+  return data;
 }
 
 function escapeHtml(str = '') {

@@ -1,7 +1,7 @@
 {
-  "name": "nova-messenger",
+  "name": "corelogic-messenger",
   "version": "1.0.0",
-  "description": "Realtime messenger inspired by Discord and Telegram",
+  "description": "Realtime messenger with Discord-like UI, themes and profile settings",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
