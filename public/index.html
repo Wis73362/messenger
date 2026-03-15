@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nova Messenger</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="landing" class="landing">
+      <div class="gradient-orb"></div>
+      <header class="landing-header">
+        <h1>Nova Messenger</h1>
+        <p>Новый взгляд на общение: быстрые каналы, личные чаты и реакции в реальном времени.</p>
+        <button id="open-auth" class="primary">Начать общение</button>
+      </header>
+      <section class="feature-grid">
+        <article>
+          <h3>Серверы и каналы</h3>
+          <p>Создавайте тематические пространства как в Discord.</p>
+        </article>
+        <article>
+          <h3>ЛС и быстрые чаты</h3>
+          <p>Начинайте личные диалоги в один клик как в Telegram.</p>
+        </article>
+        <article>
+          <h3>Живые реакции</h3>
+          <p>Реагируйте эмодзи, отвечайте, закрепляйте и редактируйте сообщения.</p>
+        </article>
+      </section>
+    </div>
+
+    <div id="auth-modal" class="modal hidden">
+      <div class="modal-card">
+        <h2>Вход / Регистрация</h2>
+        <input id="username" placeholder="Логин" />
+        <input id="password" placeholder="Пароль" type="password" />
+        <div class="actions">
+          <button id="register" class="primary">Регистрация</button>
+          <button id="login">Войти</button>
+          <button id="close-auth">Отмена</button>
+        </div>
+        <p id="auth-error" class="error"></p>
+      </div>
+    </div>
+
+    <div id="app" class="app hidden">
+      <aside class="sidebar">
+        <div class="profile">
+          <div id="avatar" class="avatar"></div>
+          <div>
+            <strong id="me-name"></strong>
+            <small id="me-status"></small>
+          </div>
+        </div>
+        <button id="new-channel">+ Канал</button>
+        <button id="new-dm">+ Личный чат</button>
+        <input id="search" placeholder="Поиск сообщений" />
+        <div class="rooms-block">
+          <h4>Каналы</h4>
+          <ul id="channels"></ul>
+          <h4>Личные чаты</h4>
+          <ul id="dms"></ul>
+        </div>
+      </aside>
+      <main class="chat-area">
+        <header>
+          <h2 id="room-title">Выберите чат</h2>
+          <p id="typing"></p>
+        </header>
+        <div id="messages" class="messages"></div>
+        <div id="reply-box" class="reply hidden"></div>
+        <form id="send-form" class="send-form">
+          <input id="message-input" placeholder="Введите сообщение..." autocomplete="off" />
+          <button class="primary" type="submit">Отправить</button>
+        </form>
+      </main>
+      <aside class="presence">
+        <h4>Онлайн</h4>
+        <ul id="online-list"></ul>
+        <div id="search-results"></div>
+      </aside>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
